@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>惊悚乐园·随机剧本</title>
+    <style>
+        :root {
+            --blood-red: #ff2424;
+            --neon-blue: #0ff;
+        }
+
+        body {
+            background: #000;
+            color: #ccc;
+            font-family: 'Consolas', 'Microsoft YaHei', monospace;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* CRT 屏幕效果 */
+        .crt::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 4px 100%;
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        .scene-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            border: 1px solid var(--blood-red);
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            position: relative;
+        }
+
+        .scene-text {
+            font-size: 1.1rem;
+            margin-bottom: 1.5rem;
+            min-height: 120px;
+            border-left: 3px solid var(--neon-blue);
+            padding-left: 1rem;
+        }
+
+        .choices-container {
+            display: grid;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .choice-btn {
+            background: none;
+            border: 1px solid #444;
+            color: #ddd;
+            padding: 12px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.3s ease;
+        }
+
+        .choice-btn:hover:not(:disabled) {
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 8px var(--neon-blue);
+            transform: translateX(10px);
+        }
+
+        .choice-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 10px;
+            display: flex;
+            gap: 2rem;
+            border-top: 1px solid var(--blood-red);
+        }
+
+        .glitch {
+            animation: glitch 1s linear infinite;
+        }
+
+        @keyframes glitch {
+            2% { text-shadow: 2px 0 0 var(--blood-red); }
+            4% { text-shadow: -2px 0 0 var(--neon-blue); }
+            96% { text-shadow: 2px 0 0 var(--blood-red); }
+            98% { text-shadow: -2px 0 0 var(--neon-blue); }
+        }
+
+        .loading::after {
+            content: "▮";
+            animation: typing 1s infinite;
+            color: var(--neon-blue);
+        }
+
+        @keyframes typing {
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body class="crt">
+    <div class="scene-container">
+        <div id="scene-text" class="scene-text loading"></div>
+        <div id="choices" class="choices-container"></div>
+    </div>
+
+    <div class="status-bar">
+        <div>逻辑力: <span id="logic-value">0</span></div>
+        <div>混沌值: <span id="chaos-value">0</span></div>
+    </div>
+
+    <script>
+        class GameEngine {
+            constructor() {
+                this.sessionId = null;
+                this.apiBase = '/api'; // 根据实际API地址修改
+                this.sceneElement = document.getElementById('scene-text');
+                this.choicesElement = document.getElementById('choices');
+                this.logicElement = document.getElementById('logic-value');
+                this.chaosElement = document.getElementById('chaos-value');
+                this.state = { logic: 0, chaos: 0, tags: [] };
+            }
+
+            async initGame() {
+                try {
+                    this.showLoading();
+                    const response = await fetch(`${this.apiBase}/start`, {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    
+                    this.sessionId = data.sessionId;
+                    this.updateScene(data.initialPlot, data.choices);
+                    this.updateStatus();
+                } catch (error) {
+                    this.showError('游戏初始化失败');
+                }
+            }
+
+            async submitChoice(choiceId) {
+                try {
+                    this.showLoading();
+                    const response = await fetch(`${this.apiBase}/progress`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sessionId: this.sessionId,
+                            choiceId,
+                            currentState: this.state
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    this.state = data.updatedState;
+                    this.updateScene(data.nextScene, data.newChoices);
+                    this.updateStatus();
+                    this.applyVisualEffects();
+                } catch (error) {
+                    this.showError('选择提交失败');
+                }
+            }
+
+            updateScene(text, choices) {
+                this.sceneElement.classList.remove('loading');
+                this.sceneElement.innerHTML = this.parseSpecialEffects(text);
+                this.renderChoices(choices);
+            }
+
+            renderChoices(choices) {
+                this.choicesElement.innerHTML = choices.map(choice => `
+                    <button class="choice-btn" 
+                            onclick="game.submitChoice(${choice.id})"
+                            ${this.isChoiceLocked(choice) ? 'disabled' : ''}>
+                        ${choice.text}
+                    </button>
+                `).join('');
+            }
+
+            isChoiceLocked(choice) {
+                return (choice.requiredTags && 
+                       !choice.requiredTags.some(t => this.state.tags.includes(t))) ||
+                       (choice.requiredLogic && this.state.logic < choice.requiredLogic);
+            }
+
+            updateStatus() {
+                this.logicElement.textContent = this.state.logic;
+                this.chaosElement.textContent = this.state.chaos;
+            }
+
+            applyVisualEffects() {
+                document.body.classList.toggle('glitch', this.state.chaos > 60);
+            }
+
+            showLoading() {
+                this.sceneElement.classList.add('loading');
+                this.choicesElement.innerHTML = '';
+            }
+
+            showError(msg) {
+                this.sceneElement.innerHTML = `<span style="color:var(--blood-red)">[系统异常] ${msg}</span>`;
+                this.choicesElement.innerHTML = '<button onclick="location.reload()">重试</button>';
+            }
+
+            parseSpecialEffects(text) {
+                return text
+                    .replace(/《(.*?)》/g, '<em class="glitch">$1</em>')
+                    .replace(/\[(.*?)\]/g, '<strong style="color:var(--neon-blue)">$1</strong>');
+            }
+        }
+
+        const game = new GameEngine();
+        window.onload = () => game.initGame();
+    </script>
+</body>
+</html>
