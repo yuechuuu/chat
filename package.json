@@ -1,0 +1,28 @@
+{
+  "name": "horror-text-game",
+  "version": "1.0.0",
+  "description": "惊悚乐园风格随机文字冒险游戏",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node server.js",
+    "build": "echo 'Building...'",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "lodash": "^4.17.21",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@vercel/node": "^2.15.10",
+    "vercel": "^33.7.1"
+  },
+  "engines": {
+    "node": ">=18.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yuechuuu/chat.git"
+  }
+}
